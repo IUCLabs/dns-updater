@@ -39,14 +39,16 @@ minor: ; @$(MAKE) bump PART=minor
 major: ; @$(MAKE) bump PART=major
 
 bump:
-	@cur=$$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || echo 0.0.0); \
-	IFS=. read -r MA MI PA <<EOF
-	$$cur
-	EOF
+	@cur=$$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//'); \
+	[ -n "$$cur" ] || cur=0.0.0; \
+	MA=$$(echo "$$cur" | cut -d. -f1); \
+	MI=$$(echo "$$cur" | cut -d. -f2); \
+	PA=$$(echo "$$cur" | cut -d. -f3); \
 	case "$(PART)" in \
 	  major) MA=$$((MA+1)); MI=0; PA=0;; \
 	  minor) MI=$$((MI+1)); PA=0;; \
 	  patch) PA=$$((PA+1));; \
+	  *) echo "unknown PART=$(PART)"; exit 1;; \
 	esac; \
 	new="v$$MA.$$MI.$$PA"; \
 	echo "tagging $$new"; \
