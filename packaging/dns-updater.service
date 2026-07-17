@@ -1,0 +1,30 @@
+[Unit]
+Description=DNS record updater (RFC2136 dynamic DNS from a records file)
+Documentation=https://github.com/IUCLabs/dns-updater
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=notify
+EnvironmentFile=-/etc/dns-updater/env
+ExecStart=/usr/bin/dns-updater
+Restart=on-failure
+RestartSec=5
+WatchdogSec=0
+
+# Hardening. Runs as root to read the root-owned TSIG key; lock the rest down.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+ProtectKernelModules=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
+RestrictNamespaces=true
+ReadWritePaths=/var/lib/dns-updater /run/dns-updater
+RuntimeDirectory=dns-updater
+StateDirectory=dns-updater
+
+[Install]
+WantedBy=multi-user.target
