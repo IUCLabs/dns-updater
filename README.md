@@ -49,8 +49,24 @@ Flags or env (see `packaging/env.sample`); env wins via the systemd
 | `-api` | `DNS_UPDATER_API` | `/run/dns-updater/api.sock` |
 | `-log-level` | `DNS_UPDATER_LOG_LEVEL` | `info` |
 | `-oneshot` | `DNS_UPDATER_ONESHOT` | `false` |
+| `-deny-ranges` | `DNS_UPDATER_DENY_RANGES` | (none) |
+| `-allow-ranges` | `DNS_UPDATER_ALLOW_RANGES` | (none) |
+| `-deny-domains` | `DNS_UPDATER_DENY_DOMAINS` | (none) |
+| `-allow-domains` | `DNS_UPDATER_ALLOW_DOMAINS` | (none) |
 
 The TSIG key file is BIND format (`key "name" { algorithm ...; secret "..."; };`).
+
+### Filtering
+
+`*-ranges` are comma-separated CIDRs; `*-domains` are comma-separated FQDN
+suffixes. Range rules apply to records that carry an address — A/AAAA by value,
+PTR by the address encoded in the reverse-DNS owner — so both
+`node01-kube-lb0 A 203.0.113.2` and the matching `…113.0.203.in-addr.arpa`
+PTR are dropped by `-deny-ranges=203.0.113.0/25`. Domain rules apply to every
+record by owner name. Deny wins; a non-empty allow list means "only these".
+This keeps k8s/LB/internal addresses (pod/service CIDRs, LB VIP ranges) out of
+the authoritative zones and stops NOTAUTH updates for zones the server does not
+host.
 
 ## Status API
 
