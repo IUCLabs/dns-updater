@@ -6,8 +6,12 @@ package config
 import (
 	"flag"
 	"fmt"
+	"net"
 	"os"
+	"strings"
 	"time"
+
+	"github.com/IUCLabs/dns-updater/internal/records"
 )
 
 // Config is the daemon configuration.
@@ -23,6 +27,7 @@ type Config struct {
 	Oneshot     bool          // reconcile once and exit (no watching)
 	APIAddr     string        // status API address (unix socket path or host:port; empty disables)
 	LogLevel    string        // debug|info|warn|error
+	Filter      records.Filter
 }
 
 const defaultPort = "53"
@@ -42,6 +47,10 @@ func Parse(args []string) (*Config, error) {
 	fs.BoolVar(&c.Oneshot, "oneshot", envBool("DNS_UPDATER_ONESHOT", false), "reconcile once and exit")
 	fs.StringVar(&c.APIAddr, "api", env("DNS_UPDATER_API", "/run/dns-updater/api.sock"), "status API address (unix path or host:port; empty disables)")
 	fs.StringVar(&c.LogLevel, "log-level", env("DNS_UPDATER_LOG_LEVEL", "info"), "log level: debug|info|warn|error")
+	denyRanges := fs.String("deny-ranges", env("DNS_UPDATER_DENY_RANGES", ""), "comma-separated CIDRs to never publish (A value / PTR address in range is dropped)")
+	allowRanges := fs.String("allow-ranges", env("DNS_UPDATER_ALLOW_RANGES", ""), "comma-separated CIDRs; if set, only addresses in these are published")
+	denyDomains := fs.String("deny-domains", env("DNS_UPDATER_DENY_DOMAINS", ""), "comma-separated domain suffixes to never publish")
+	allowDomains := fs.String("allow-domains", env("DNS_UPDATER_ALLOW_DOMAINS", ""), "comma-separated domain suffixes; if set, only these are published")
 	if err := fs.Parse(args); err != nil {
 		return nil, err
 	}
@@ -49,7 +58,39 @@ func Parse(args []string) (*Config, error) {
 		return nil, fmt.Errorf("server is required (-server or DNS_UPDATER_SERVER)")
 	}
 	c.Server = withPort(c.Server)
+
+	var err error
+	if c.Filter.DenyRanges, err = parseCIDRs(*denyRanges); err != nil {
+		return nil, fmt.Errorf("deny-ranges: %w", err)
+	}
+	if c.Filter.AllowRanges, err = parseCIDRs(*allowRanges); err != nil {
+		return nil, fmt.Errorf("allow-ranges: %w", err)
+	}
+	c.Filter.DenyDomains = splitList(*denyDomains)
+	c.Filter.AllowDomains = splitList(*allowDomains)
 	return c, nil
+}
+
+func splitList(s string) []string {
+	var out []string
+	for _, p := range strings.Split(s, ",") {
+		if p = strings.TrimSpace(p); p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+func parseCIDRs(s string) ([]*net.IPNet, error) {
+	var out []*net.IPNet
+	for _, p := range splitList(s) {
+		_, n, err := net.ParseCIDR(p)
+		if err != nil {
+			return nil, fmt.Errorf("%q: %w", p, err)
+		}
+		out = append(out, n)
+	}
+	return out, nil
 }
 
 func withPort(s string) string {

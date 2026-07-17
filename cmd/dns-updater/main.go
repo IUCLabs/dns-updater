@@ -48,6 +48,11 @@ func run(args []string) error {
 		return fmt.Errorf("load key: %w", err)
 	}
 	log.Info("loaded tsig key", "name", strings.TrimSuffix(key.Name, "."), "algorithm", strings.TrimSuffix(key.Algorithm, "."))
+	if !cfg.Filter.Empty() {
+		log.Info("record filter active",
+			"deny_ranges", len(cfg.Filter.DenyRanges), "allow_ranges", len(cfg.Filter.AllowRanges),
+			"deny_domains", len(cfg.Filter.DenyDomains), "allow_domains", len(cfg.Filter.AllowDomains))
+	}
 
 	app := updater.New(cfg.Server, key, cfg.Timeout)
 	store := api.NewStore(version, cfg.Server, cfg.RecordsFile)
@@ -161,6 +166,13 @@ func (d *daemon) reconcile(trigger string) error {
 	}
 	if err != nil {
 		d.log.Warn("some records skipped", "trigger", trigger, "err", err)
+	}
+	if !d.cfg.Filter.Empty() {
+		var dropped int
+		desired, dropped = d.cfg.Filter.Apply(desired)
+		if dropped > 0 {
+			d.log.Debug("filtered records", "trigger", trigger, "dropped", dropped, "kept", desired.Len())
+		}
 	}
 	applied, aerr := records.LoadOrEmpty(d.cfg.StateFile)
 	if aerr != nil {
