@@ -1,0 +1,54 @@
+GO_VERSION := 1.25
+BINARY := dns-updater
+PKG := github.com/IUCLabs/dns-updater
+VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null | sed 's/^v//' || echo 0.0.0)
+LDFLAGS := -X main.version=$(VERSION)
+
+.PHONY: all build test vet fmt tidy lint rpm clean patch minor major
+
+all: build
+
+build:
+	mkdir -p dist
+	CGO_ENABLED=0 go build -ldflags "$(LDFLAGS)" -o dist/$(BINARY) ./cmd/$(BINARY)
+
+test:
+	go test ./...
+
+vet:
+	go vet ./...
+
+fmt:
+	gofmt -l -w .
+
+tidy:
+	go mod tidy
+
+lint: vet
+	@gofmt -l . | grep . && { echo "gofmt needed"; exit 1; } || echo "gofmt clean"
+
+rpm: build
+	./scripts/build-rpm.sh $(VERSION)
+
+clean:
+	rm -rf $(BINARY) dist *.rpm
+
+# Version bump targets: tag vX.Y.Z and push so Woodpecker builds the release.
+patch: ; @$(MAKE) bump PART=patch
+minor: ; @$(MAKE) bump PART=minor
+major: ; @$(MAKE) bump PART=major
+
+bump:
+	@cur=$$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || echo 0.0.0); \
+	IFS=. read -r MA MI PA <<EOF
+	$$cur
+	EOF
+	case "$(PART)" in \
+	  major) MA=$$((MA+1)); MI=0; PA=0;; \
+	  minor) MI=$$((MI+1)); PA=0;; \
+	  patch) PA=$$((PA+1));; \
+	esac; \
+	new="v$$MA.$$MI.$$PA"; \
+	echo "tagging $$new"; \
+	git tag -a "$$new" -m "release $$new"; \
+	git push origin "$$new"

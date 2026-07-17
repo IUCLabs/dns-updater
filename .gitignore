@@ -1,0 +1,4 @@
+# Built artifacts — anchored so they do not accidentally match cmd/dns-updater/.
+/dns-updater
+/*.rpm
+/dist/
