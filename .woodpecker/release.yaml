@@ -65,7 +65,7 @@ steps:
 
   # Package the built binary into an RPM.
   - name: package
-    image: registry.example.com/example/almalinux9-rpmbuilder:latest
+    image: artifactapi.example.com/docker-internal/rpmbuilder:0.1.0-alma9
     commands:
       - ./scripts/build-rpm.sh ${CI_COMMIT_TAG}
     depends_on: [build]
