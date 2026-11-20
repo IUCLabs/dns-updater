@@ -91,6 +91,6 @@ slog `key=value` output parses cleanly in VictoriaLogs.
 ```
 make build      # binary
 make test       # unit + in-process TSIG server integration tests
-make rpm        # RPM via nfpm (needs the binary)
-make patch      # tag vX.Y.(Z+1) and push -> Woodpecker release
+make rpm        # binaries + RPM into dist/ via a goreleaser snapshot
+make patch      # tag vX.Y.(Z+1) and push -> GitHub release
 ```

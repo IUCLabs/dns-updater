@@ -1,0 +1,66 @@
+version: 2
+project_name: dns-updater
+
+builds:
+  - &build
+    id: amd64
+    main: ./cmd/dns-updater
+    binary: dns-updater
+    env:
+      - CGO_ENABLED=0
+    mod_timestamp: "{{ .CommitTimestamp }}"
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X main.version={{ .Tag }}
+    goos: [linux]
+    goarch: [amd64]
+  # separate build so only amd64 gets an RPM
+  - <<: *build
+    id: arm64
+    goarch: [arm64]
+
+archives:
+  - formats: [binary]
+    name_template: "{{ .ProjectName }}-{{ .Os }}-{{ .Arch }}"
+
+nfpms:
+  - package_name: dns-updater
+    ids: [amd64]
+    formats: [rpm]
+    file_name_template: "{{ .ConventionalFileName }}"
+    release: "1"
+    section: net
+    maintainer: Ben Vincent <12552114+neoloc@users.noreply.github.com>
+    homepage: https://github.com/IUCLabs/dns-updater
+    license: MIT
+    description: "RFC2136 dynamic-DNS updater daemon: watches a records file and network interfaces and pushes TSIG-signed updates to BIND, with a local status API for facter."
+    bindir: /usr/bin
+    provides: [dns-updater]
+    dependencies: [systemd]
+    contents:
+      - src: packaging/dns-updater.service
+        dst: /usr/lib/systemd/system/dns-updater.service
+        file_info:
+          mode: 0644
+      - src: packaging/facts.d/dns_updater.sh
+        dst: /opt/puppetlabs/facter/facts.d/dns_updater.sh
+        file_info:
+          mode: 0755
+      - src: packaging/env.sample
+        dst: /etc/dns-updater/env
+        type: config|noreplace
+        file_info:
+          mode: 0644
+    scripts:
+      postinstall: packaging/scripts/postinstall.sh
+      preremove: packaging/scripts/preremove.sh
+
+checksum:
+  name_template: "{{ .ProjectName }}_{{ .Version }}_SHA256SUMS"
+  algorithm: sha256
+
+signs:
+  - artifacts: checksum
+    cmd: scripts/sign.sh
+    args: ["${artifact}", "${signature}"]
