@@ -27,13 +27,13 @@ tidy:
 lint: vet
 	@gofmt -l . | grep . && { echo "gofmt needed"; exit 1; } || echo "gofmt clean"
 
-rpm: build
-	./scripts/build-rpm.sh $(VERSION)
+rpm:
+	GOTOOLCHAIN=auto go run github.com/goreleaser/goreleaser/v2@v2.20.2 release --snapshot --clean --skip=sign
 
 clean:
 	rm -rf $(BINARY) dist *.rpm
 
-# Version bump targets: tag vX.Y.Z and push so Woodpecker builds the release.
+# Version bump targets: tag vX.Y.Z and push; the mirrored tag triggers the GitHub release.
 patch: ; @$(MAKE) bump PART=patch
 minor: ; @$(MAKE) bump PART=minor
 major: ; @$(MAKE) bump PART=major
