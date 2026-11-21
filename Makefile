@@ -33,24 +33,20 @@ rpm:
 clean:
 	rm -rf $(BINARY) dist *.rpm
 
-# Version bump targets: tag vX.Y.Z and push; the mirrored tag triggers the GitHub release.
-patch: ; @$(MAKE) bump PART=patch
-minor: ; @$(MAKE) bump PART=minor
-major: ; @$(MAKE) bump PART=major
+DEFAULT_BRANCH ?= main
 
-bump:
-	@cur=$$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//'); \
-	[ -n "$$cur" ] || cur=0.0.0; \
-	MA=$$(echo "$$cur" | cut -d. -f1); \
-	MI=$$(echo "$$cur" | cut -d. -f2); \
-	PA=$$(echo "$$cur" | cut -d. -f3); \
-	case "$(PART)" in \
-	  major) MA=$$((MA+1)); MI=0; PA=0;; \
-	  minor) MI=$$((MI+1)); PA=0;; \
-	  patch) PA=$$((PA+1));; \
-	  *) echo "unknown PART=$(PART)"; exit 1;; \
-	esac; \
-	new="v$$MA.$$MI.$$PA"; \
-	echo "tagging $$new"; \
-	git tag -a "$$new" -m "release $$new"; \
-	git push origin "$$new"
+# Draft the release with generated notes, then push the tag; the release
+# workflow attaches assets to the draft and publishes it.
+patch minor major:
+	@git fetch --quiet --tags origin $(DEFAULT_BRANCH)
+	@test "$$(git branch --show-current)" = "$(DEFAULT_BRANCH)" || { echo "ERROR: not on $(DEFAULT_BRANCH)"; exit 1; }
+	@test -z "$$(git status --porcelain)" || { echo "ERROR: working tree not clean"; exit 1; }
+	@test "$$(git rev-parse HEAD)" = "$$(git rev-parse origin/$(DEFAULT_BRANCH))" || { echo "ERROR: HEAD is not origin/$(DEFAULT_BRANCH)"; exit 1; }
+	@LATEST=$$(git tag --list 'v*' --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$$' | head -1); \
+	NEW=$$(echo "$${LATEST:-v0.0.0}" | sed 's/^v//' | awk -F. -v b=$@ '{ \
+		if (b == "major") print "v" ($$1+1) ".0.0"; \
+		else if (b == "minor") print "v" $$1 "." ($$2+1) ".0"; \
+		else print "v" $$1 "." $$2 "." ($$3+1) }'); \
+	SHA=$$(git rev-parse HEAD); \
+	gh release create "$$NEW" --draft --target "$$SHA" --generate-notes --title "$$NEW" || exit 1; \
+	git push origin "$$SHA:refs/tags/$$NEW" || { gh release delete "$$NEW" --yes; exit 1; }
