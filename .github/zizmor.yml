@@ -1,0 +1,7 @@
+rules:
+  unpinned-uses:
+    config:
+      policies:
+        # shared workflows are pinned to their release tags
+        "IUCLabs/*": ref-pin
+        "*": hash-pin
